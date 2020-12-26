@@ -17,7 +17,7 @@ import os
 import numpy as np
 
 from tasks.semantic.modules.SalsaNext import *
-from tasks.semantic.modules.SalsaNextAdf import *
+from tasks.semantic.modules.SalsaNextUncertainty import *
 from tasks.semantic.postproc.KNN import KNN
 
 
@@ -119,7 +119,8 @@ class User():
 
   def infer_subset(self, loader, to_orig_fn,cnn,knn):
     # switch to evaluate mode
-    self.model.eval()
+    if not self.uncertainty:
+      self.model.eval()
     total_time=0
     total_frames=0
     # empty the cache to infer in high res
@@ -148,16 +149,15 @@ class User():
 
         #compute output
         if self.uncertainty:
-            log_var_r, proj_output_r = self.model(proj_in)
+            proj_output_r,log_var_r = self.model(proj_in)
             for i in range(self.mc):
                 log_var, proj_output = self.model(proj_in)
                 log_var_r = torch.cat((log_var, log_var_r))
                 proj_output_r = torch.cat((proj_output, proj_output_r))
 
-            log_var2, proj_output2 = self.model(proj_in)
+            proj_output2,log_var2 = self.model(proj_in)
             proj_output = proj_output_r.var(dim=0, keepdim=True).mean(dim=1)
-            proj_argmax = proj_output2[0].argmax(dim=0)
-            log_var2 = log_var_r.var(dim=0, keepdim=True).mean(dim=1)
+            log_var2 = log_var_r.mean(dim=0, keepdim=True).mean(dim=1)
             if self.post:
                 # knn postproc
                 unproj_argmax = self.post(proj_range,
